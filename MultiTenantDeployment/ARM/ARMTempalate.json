@@ -1,0 +1,95 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "collation": {
+      "defaultValue": "SQL_Latin1_General_CP1_CI_AS",
+      "type": "string"
+    },
+    "databaseName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlServerName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlAdminUserName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "sqlAdminPassword": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "elasticPoolId": {
+      "type": "string",
+      "defaultValue": ""
+      },
+      "domainName": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "tenantName": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "storageKey": {
+        "type": "string",
+        "defaultValue": ""
+      },
+      "baseDatabasePath": {
+        "type": "string",
+        "defaultValue": ""
+      }
+    },
+  "resources": [
+    //Create a blank database in elastic pool
+    {
+      "type": "Microsoft.Sql/servers/databases",
+      "name": "[concat(parameters('sqlServerName'), '/', parameters('databaseName'))]",
+      "apiVersion": "2017-03-01-preview",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "collation": "[parameters('collation')]",
+        "elasticPoolId": "[parameters('elasticPoolId')]"
+      },
+      "resources": [
+        //Import database from the .bacpac file already created in blob storage
+        {
+          "name": "Import",
+          "type": "extensions",
+          "apiVersion": "2014-04-01",
+          "dependsOn": [
+            "[parameters('databaseName')]"
+          ],
+          "properties": {
+            "storageKeyType": "StorageAccessKey",
+            "storageKey": "[parameters('storageKey')]",
+            "storageUri": "[parameters('baseDatabasePath')]",
+            "administratorLogin": "[parameters('sqlAdminUserName')]",
+            "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+            "operationMode": "Import"
+          }
+        }
+      ]
+    },
+    {
+      //Bind sub domain to the application. 
+      //This is options. Please comment this section if you do not have custome domain bindings for your Application
+      "type": "Microsoft.Network/dnszones/CNAME",
+      "name": "[concat(parameters('domainName'), '/' ,parameters('tenantName'))]",
+      "apiVersion": "2017-10-01",
+      "scale": null,
+      "properties": {
+        "TTL": 3600,
+        "CNAMERecord": {
+          "cname": "[concat(parameters('frontEndWebApplicationName'),  '.azurewebsites.net')]"
+        }
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Web/sites/',parameters('frontEndWebApplicationName'))]"
+      ]
+    }
+  ]
+}
